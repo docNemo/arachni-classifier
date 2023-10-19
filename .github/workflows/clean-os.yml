@@ -1,0 +1,91 @@
+name: Clean OS
+
+on:
+  pull_request:
+    branches: [ "master", "develop" ]
+    types: [ closed ]
+
+env:
+  APPLICATION_NAME: "arachni-classifier"
+
+jobs:
+  clean-os:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prepare branch name
+        uses: jungwinter/split@master
+        id: branch
+        with:
+          msg: ${{ github.head_ref }}
+          separator: "/"
+          maxsplit: -1
+
+      - name: Prepare tags
+        id: meta
+        run: |
+          echo "::set-output name=version::${{ steps.branch.outputs._1 || steps.branch.outputs._0 }}"
+
+      #       DEPLOY
+      - name: ZeroTier
+        uses: zerotier/github-action@v1.0.1
+        with:
+          network_id: ${{ secrets.ZEROTIER_NETWORK_ID }}
+
+      - name: Get DNS server from zerotier
+        id: dns
+        run: |
+          echo "dns=$(sudo zerotier-cli -j listnetworks | jq '.[].dns.servers[0]')" >> $GITHUB_ENV
+
+      - name: Add DNS to resolv.conf
+        run: |
+          sudo mv /etc/resolv.conf /etc/resolv1.conf
+          cat /etc/resolv1.conf | sudo tee -a /etc/resolv.conf
+          echo "nameserver ${{ env.dns }}" | sudo tee -a /etc/resolv.conf
+
+      - name: Install oc
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: 4
+
+      - name: Log in to OpenShift
+        run: |
+          max_iteration=3
+          iteration=1
+          until oc login -u ${{ secrets.LOGIN_OS }} -p ${{ secrets.PASSWORD_OS }} --server=https://${{ secrets.OPENSHIFT_SERVER }}:6443 --insecure-skip-tls-verify
+          do
+              echo "Unsuccessful login to OS $iteration"
+              if [[ $iteration -eq $max_iteration ]]
+              then
+                break
+              fi
+          
+              sleep 15
+              ((iteration++)) 
+          done          
+          oc project ${{ env.OS_PROJECT }}
+
+      - run: oc whoami
+
+      - name: Delete
+        run: |
+          oc delete all -l app=${{ env.APPLICATION_NAME }}-${{ steps.meta.outputs.version }}
+
+      - name: Logout from OpenShift
+        run: oc logout
+
+      - name: Get Zerotier ip
+        run: |
+          echo "ip=$(sudo zerotier-cli -j listnetworks | jq '.[].assignedAddresses[0]' | sed 's/\/24//g' | tr -d \\\")" >> $GITHUB_ENV
+
+      - name: Leave from Zerotier network
+        run: sudo zerotier-cli leave ${{ secrets.ZEROTIER_NETWORK_ID }}
+
+      - name: Get Zerotier member by ip
+        run: |
+          echo "member_id=$(curl -X GET -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member | jq 'select(.[].config.ipAssignments[0]=="${{ env.ip }}") | .[0].nodeId' | tr -d \\\")" >> $GITHUB_ENV
+
+      - name: Delete Zerotier member
+        run: |
+          curl -X DELETE -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member/${{ env.member_id }}

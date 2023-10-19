@@ -1,0 +1,132 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: ${APPLICATION_NAME}-template
+  app: ${APPLICATION_NAME}
+labels:
+  template: ${APPLICATION_NAME}-template
+  app: ${APPLICATION_NAME}
+objects:
+  - kind: DeploymentConfig
+    apiVersion: apps.openshift.io/v1
+    metadata:
+      name: ${APPLICATION_NAME}
+      generation: 1
+      labels:
+        name: ${APPLICATION_NAME}
+        app: ${APPLICATION_NAME}
+    spec:
+      replicas: 1
+      strategy:
+        type: Rolling
+        rollingUpdate:
+          maxUnavailable: 25%
+          maxSurge: 25%
+      triggers:
+        - type: ConfigChange
+      revisionHistoryLimit: 10
+      progressDeadlineSeconds: 600
+      selector:
+        app: ${APPLICATION_NAME}
+        deploymentConfig: ${APPLICATION_NAME}
+      template:
+        metadata:
+          labels:
+            app: ${APPLICATION_NAME}
+            deploymentConfig: ${APPLICATION_NAME}
+        spec:
+          restartPolicy: Always
+          serviceAccountName: builder
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 60
+          securityContext: {}
+          dnsPolicy: ClusterFirst
+          containers:
+            - name: ${APPLICATION_NAME}
+              image: ${IMAGE}@${IMAGE_SHA}
+              imagePullPolicy: Always
+              ports:
+                - containerPort: ${{HOST_PORT}}
+                  name: http
+                  protocol: TCP
+              resources:
+                limits:
+                  cpu: ${{LIMITS_CPU}}
+                  memory: ${LIMITS_MEMORY}
+                requests:
+                  cpu: ${{REQUESTS_CPU}}
+                  memory: ${REQUESTS_MEMORY}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              env:
+                - name: APPLICATION_NAME
+                  value: ${APPLICATION_NAME}
+                - name: JAVA_OPTS
+                  value: '-Dstorage.minio.accessKey=${ACCESS_KEY} -Dstorage.minio.secretKey=${SECRET_KEY}'
+                - name: ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-keys
+                      key: access-key
+                - name: SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: minio-keys
+                      key: secret-key
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: ${APPLICATION_NAME}
+      labels:
+        app: ${APPLICATION_NAME}
+    spec:
+      ports:
+        - name: http-${HOST_PORT}
+          port: ${{HOST_PORT}}
+      selector:
+        app: ${APPLICATION_NAME}
+        deploymentConfig: ${APPLICATION_NAME}
+      type: ClusterIP
+      sessionAffinity: None
+    status:
+      loadBalancer: { }
+
+  - kind: Route
+    apiVersion: route.openshift.io/v1
+    metadata:
+      name: ${APPLICATION_NAME}
+      labels:
+        app: ${APPLICATION_NAME}
+    spec:
+      host: ${APPLICATION_NAME}.${OS_ROUTE}
+      to:
+        kind: Service
+        name: ${APPLICATION_NAME}
+        weight: 100
+      port:
+        targetPort: ${{HOST_PORT}}
+
+parameters:
+  - name: APPLICATION_NAME
+    required: true
+  - name: IMAGE
+    required: true
+  - name: IMAGE_SHA
+    required: true
+  - name: HOST_PORT
+    required: true
+  - name: OS_ROUTE
+    required: true
+  - name: LIMITS_CPU
+    required: true
+    value: '1'
+  - name: LIMITS_MEMORY
+    required: true
+    value: '250Mi'
+  - name: REQUESTS_CPU
+    required: true
+    value: '1'
+  - name: REQUESTS_MEMORY
+    required: true
+    value: '250Mi'
