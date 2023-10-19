@@ -62,7 +62,7 @@ objects:
                 - name: APPLICATION_NAME
                   value: ${APPLICATION_NAME}
                 - name: JAVA_OPTS
-                  value: '-Dstorage.minio.accessKey=${ACCESS_KEY} -Dstorage.minio.secretKey=${SECRET_KEY}'
+                  value: ''
                 - name: ACCESS_KEY
                   valueFrom:
                     secretKeyRef:

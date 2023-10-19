@@ -1,5 +1,5 @@
 FROM openjdk:20-jdk-oraclelinux7
-COPY classifier-api/target/arachni-classifier.jar arachni-classifier.jar
+COPY arachni-classifier-api/target/arachni-classifier.jar arachni-classifier.jar
 
 ENV JAVA_OPTS = ""
 

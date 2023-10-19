@@ -16,7 +16,7 @@
 
     <name>arachni-classifier</name>
     <modules>
-        <module>classifier-api</module>
+        <module>arachni-classifier-api</module>
     </modules>
 
     <properties>
