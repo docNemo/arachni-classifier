@@ -1,0 +1,21 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: 'health,info'
+
+springdoc:
+  swagger-ui:
+    disable-swagger-default-url: 'true'
+    path: '/swagger-ui'
+
+storage:
+  minio:
+    host: http://minio-lab-1.neo:9000
+    bucket: arachni
+    region: ru-moscow
