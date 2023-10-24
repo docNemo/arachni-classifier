@@ -2,11 +2,12 @@ name: Clean OS
 
 on:
   pull_request:
-    branches: [ "master", "develop" ]
+    branches: [ "develop" ]
     types: [ closed ]
 
 env:
-  APPLICATION_NAME: "arachni-classifier"
+  APPLICATION_NAME: ${{ github.event.repository.name }}
+  OS_PROJECT: "arachni-back-dev"
 
 jobs:
   clean-os:
