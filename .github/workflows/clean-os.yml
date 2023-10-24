@@ -66,12 +66,11 @@ jobs:
               ((iteration++)) 
           done          
           oc project ${{ env.OS_PROJECT }}
-
-      - run: oc whoami
+          oc whoami
 
       - name: Delete
         run: |
-          oc delete all -l app=${{ env.APPLICATION_NAME }}-${{ steps.meta.outputs.version }}
+          oc delete all,vs -l app=${{ env.APPLICATION_NAME }}-${{ steps.meta.outputs.version }}
 
       - name: Logout from OpenShift
         run: oc logout
@@ -85,7 +84,7 @@ jobs:
 
       - name: Get Zerotier member by ip
         run: |
-          echo "member_id=$(curl -X GET -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member | jq 'select(.[].config.ipAssignments[0]=="${{ env.ip }}") | .[0].nodeId' | tr -d \\\")" >> $GITHUB_ENV
+          echo "member_id=$(curl -X GET -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member | jq '.[] | select(.config.ipAssignments[0]=="${{ env.ip }}") | .nodeId' | tr -d \\\")" >> $GITHUB_ENV
 
       - name: Delete Zerotier member
         run: |
