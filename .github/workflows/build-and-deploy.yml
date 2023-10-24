@@ -11,15 +11,12 @@ env:
   DOCKERFILE: "Dockerfile"
   IMAGE_NAME: ${{ github.repository }}
 
-  APPLICATION_NAME: "arachni-classifier"
-  OS_PROJECT: "arachni"
-  APP_TEMPLATE: "DeploymentConfig.yml"
-  HOST_PORT: "8080"
-  OS_ROUTE: "apps.os-lab-3.neo"
+  BASE_APPLICATION_NAME: ${{ github.event.repository.name }}
 
 jobs:
   build-and-deploy:
 
+    if: github.event.pull_request.state != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,10 +38,7 @@ jobs:
           java-version: '20'
           distribution: 'oracle'
 
-      - name: Build with Maven
-        run: mvn --batch-mode --update-snapshots clean package
-
-      # BUILD DOCKER CONTAINER
+      # DEFINE ENV
       - name: Choose source branch
         if: github.event.pull_request.state == 'open'
         run: echo "BRANCH=${{ github.head_ref }}" >> $GITHUB_ENV
@@ -61,20 +55,64 @@ jobs:
           separator: "/"
           maxsplit: -1
 
+      - name: Prepare version
+        run: |
+          echo "VERSION=${{ steps.branch.outputs._1 || steps.branch.outputs._0 }}" >> $GITHUB_ENV
+
+      - name: Prepare IMAGE_NAME_WIHT_VERSION
+        run: |
+          echo "IMAGE_NAME_WIHT_VERSION=${{ env.IMAGE_NAME }}:${{ env.VERSION }}" >> $GITHUB_ENV
+
+      - name: Set Dev env
+        if: env.BRANCH == 'develop' || startsWith(env.BRANCH, 'feature')
+        run: |
+          echo "CD_MODE=dev" >> $GITHUB_ENV
+          echo "APPLICATION_NAME=${{ env.BASE_APPLICATION_NAME }}-${{ env.VERSION }}" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back-dev" >> $GITHUB_ENV
+          echo "APP_TEMPLATE=DeploymentConfig.yml" >> $GITHUB_ENV
+          echo "ROUTE_TEMPLATE=Route.yml" >> $GITHUB_ENV
+          echo "HOST_PORT=8080" >> $GITHUB_ENV
+          echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back-dev" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+
+      - name: Set UAT env
+        if: startsWith(env.BRANCH, 'release')
+        run: |
+          echo "CD_MODE=uat" >> $GITHUB_ENV
+          echo "APPLICATION_NAME=${{ env.BASE_APPLICATION_NAME }}-uat" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back-uat" >> $GITHUB_ENV
+          echo "APP_TEMPLATE=DeploymentConfig.yml" >> $GITHUB_ENV
+          echo "HOST_PORT=8080" >> $GITHUB_ENV
+          echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back-uat" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+
+      - name: Set Prod env
+        if: env.BRANCH == 'master'
+        run: |
+          echo "CD_MODE=prod" >> $GITHUB_ENV
+          echo "APPLICATION_NAME=${{ env.BASE_APPLICATION_NAME }}-prod" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back" >> $GITHUB_ENV
+          echo "APP_TEMPLATE=DeploymentConfig.yml" >> $GITHUB_ENV
+          echo "ROUTE_TEMPLATE=Route.yml" >> $GITHUB_ENV
+          echo "HOST_PORT=8080" >> $GITHUB_ENV
+          echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+
+      # BUILD
+      - name: Build with Maven
+        run: mvn --batch-mode --update-snapshots clean package
+
       - name: Image name to lowercase
         id: prepare-image-name
         uses: ASzc/change-string-case-action@v5
         with:
-          string: ${{ env.IMAGE_NAME }}
+          string: ${{ env.IMAGE_NAME_WIHT_VERSION }}
 
       - name: Prepare image name
-        run: echo "IMAGE_NAME=${{ steps.prepare-image-name.outputs.lowercase }}" >> $GITHUB_ENV
-
-      - name: Prepare tags
-        id: meta
-        run: |
-          echo "::set-output name=version::${{ steps.branch.outputs._1 || steps.branch.outputs._0 }}"
-          echo "::set-output name=tags::${{ env.IMAGE_NAME }}:${{ steps.branch.outputs._1 || steps.branch.outputs._0 }}"
+        run: echo "IMAGE_NAME_WIHT_VERSION=${{ steps.prepare-image-name.outputs.lowercase }}" >> $GITHUB_ENV
 
       - name: Log into registry ${{ env.REGISTRY }}
         run: docker login ${{ env.REGISTRY }} --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }}
@@ -82,10 +120,10 @@ jobs:
       - name: Build and push Docker image
         id: build-and-push
         run: |
-          docker build --tag ${{ env.REGISTRY }}/${{ steps.meta.outputs.tags }} . -f ${{ env.DOCKERFILE }}
-          docker push ${{ env.REGISTRY }}/${{ steps.meta.outputs.tags }}
-          clear_sha=$(docker images --digests | grep ${{ steps.meta.outputs.version }} | awk '{print $3}')
-          echo "::set-output name=sha::$clear_sha"
+          docker build --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WIHT_VERSION }} . -f ${{ env.DOCKERFILE }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WIHT_VERSION }}
+          clear_sha=$(docker images --digests | grep ${{ env.VERSION }} | awk '{print $3}')
+          echo "IMAGE_SHA=$clear_sha" >> $GITHUB_ENV
 
       # DEPLOY
       - name: ZeroTier
@@ -126,13 +164,23 @@ jobs:
           oc project ${{ env.OS_PROJECT }}
           oc whoami
 
-      - name: Deploy to OS
+      - name: Deploy App to OS
         run: |
           oc process -f config/openshift/${{ env.APP_TEMPLATE }} \
-          -p APPLICATION_NAME=${{ env.APPLICATION_NAME }}-${{ steps.meta.outputs.version }} \
+          -p APPLICATION_NAME=${{ env.APPLICATION_NAME }} \
           -p HOST_PORT=${{ env.HOST_PORT }} \
-          -p IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} \
-          -p IMAGE_SHA=${{ steps.build-and-push.outputs.sha }} \
+          -p IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WIHT_VERSION }} \
+          -p IMAGE_SHA=${{ env.IMAGE_SHA }} \
+          -p OS_ROUTE=${{ env.OS_ROUTE }} | oc apply -f -
+
+      - name: Deploy Route to OS
+        if: env.CD_MODE == 'dev'
+        run: |
+          oc process -f config/openshift/${{ env.ROUTE_TEMPLATE }} \
+          -p APPLICATION_NAME=${{ env.APPLICATION_NAME }} \
+          -p HOST_PORT=${{ env.HOST_PORT }} \
+          -p INGRESS_APP=${{ env.INGRESS_APP }} \
+          -p INGRESS_HOST=${{ env.INGRESS_HOST }} \
           -p OS_ROUTE=${{ env.OS_ROUTE }} | oc apply -f -
 
       - name: Delete completed deploy pods
@@ -152,7 +200,7 @@ jobs:
 
       - name: Get Zerotier member by ip
         run: |
-          echo "member_id=$( curl -X GET -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member | jq 'select(.[].config.ipAssignments[0]=="${{ env.ip }}") | .[0].nodeId' | tr -d \\\")" >> $GITHUB_ENV
+          echo "member_id=$( curl -X GET -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member | jq '.[] | select(.config.ipAssignments[0]=="${{ env.ip }}") | .nodeId' | tr -d \\\")" >> $GITHUB_ENV
 
       - name: Delete Zerotier member
         run: |

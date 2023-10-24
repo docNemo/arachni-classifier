@@ -1,0 +1,59 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: ${APPLICATION_NAME}-template
+labels:
+  template: ${APPLICATION_NAME}-template
+  app: ${APPLICATION_NAME}
+objects:
+  - kind: Route
+    apiVersion: route.openshift.io/v1
+    metadata:
+      name: ${APPLICATION_NAME}
+      labels:
+        app: ${APPLICATION_NAME}
+    spec:
+      host: ${APPLICATION_NAME}.${OS_ROUTE}
+      to:
+        kind: Service
+        name: ${APPLICATION_NAME}
+        weight: 100
+      port:
+        targetPort: ${{HOST_PORT}}
+
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: VirtualService
+    metadata:
+      name: ${APPLICATION_NAME}-vs
+      labels:
+        app: ${APPLICATION_NAME}
+    spec:
+      exportTo:
+        - .
+      hosts:
+        - ${INGRESS_HOST}.${OS_ROUTE}
+      gateways:
+        - ${INGRESS_APP}-gw
+      http:
+        - match:
+            - uri:
+                prefix: "/api/${APPLICATION_NAME}/"
+          rewrite:
+            uri: "/api/"
+          route:
+            - destination:
+                host: ${APPLICATION_NAME}
+                port:
+                  number: ${{HOST_PORT}}
+
+parameters:
+  - name: APPLICATION_NAME
+    required: true
+  - name: INGRESS_APP
+    required: true
+  - name: INGRESS_HOST
+    required: true
+  - name: HOST_PORT
+    required: true
+  - name: OS_ROUTE
+    required: true

@@ -2,7 +2,6 @@ apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
   name: ${APPLICATION_NAME}-template
-  app: ${APPLICATION_NAME}
 labels:
   template: ${APPLICATION_NAME}-template
   app: ${APPLICATION_NAME}
@@ -34,6 +33,8 @@ objects:
           labels:
             app: ${APPLICATION_NAME}
             deploymentConfig: ${APPLICATION_NAME}
+          annotations:
+            sidecar.istio.io/inject: 'true'
         spec:
           restartPolicy: Always
           serviceAccountName: builder
@@ -91,21 +92,6 @@ objects:
       sessionAffinity: None
     status:
       loadBalancer: { }
-
-  - kind: Route
-    apiVersion: route.openshift.io/v1
-    metadata:
-      name: ${APPLICATION_NAME}
-      labels:
-        app: ${APPLICATION_NAME}
-    spec:
-      host: ${APPLICATION_NAME}.${OS_ROUTE}
-      to:
-        kind: Service
-        name: ${APPLICATION_NAME}
-        weight: 100
-      port:
-        targetPort: ${{HOST_PORT}}
 
 parameters:
   - name: APPLICATION_NAME
