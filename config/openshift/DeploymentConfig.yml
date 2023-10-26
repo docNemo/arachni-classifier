@@ -63,7 +63,8 @@ objects:
                 - name: APPLICATION_NAME
                   value: ${APPLICATION_NAME}
                 - name: JAVA_OPTS
-                  value: ''
+                  value: |
+                    -Dobject-storage.host=${OBJECT_STORAGE_HOST}
                 - name: ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
@@ -116,3 +117,5 @@ parameters:
   - name: REQUESTS_MEMORY
     required: true
     value: '250Mi'
+  - name: OBJECT_STORAGE_HOST
+    required: true

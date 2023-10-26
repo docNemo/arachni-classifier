@@ -14,8 +14,6 @@ springdoc:
     disable-swagger-default-url: 'true'
     path: '/swagger-ui'
 
-storage:
-  minio:
-    host: http://minio-lab-1.neo:9000
-    bucket: arachni
-    region: ru-moscow
+object-storage:
+  host: http://arachni-storage-controller-develop:8080/api
+  objectsUrl: ${object-storage.host}/objects

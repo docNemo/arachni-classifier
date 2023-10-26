@@ -75,6 +75,7 @@ jobs:
           echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back-dev" >> $GITHUB_ENV
           echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "OBJECT_STORAGE_HOST=http://arachni-storage-controller-develop:8080/api" >> $GITHUB_ENV
 
       - name: Set UAT env
         if: startsWith(env.BRANCH, 'release')
@@ -87,6 +88,7 @@ jobs:
           echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back-uat" >> $GITHUB_ENV
           echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "OBJECT_STORAGE_HOST=http://arachni-storage-controller-uat:8080/api" >> $GITHUB_ENV
 
       - name: Set Prod env
         if: env.BRANCH == 'master'
@@ -100,6 +102,7 @@ jobs:
           echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back" >> $GITHUB_ENV
           echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "OBJECT_STORAGE_HOST=http://arachni-storage-controller-prod:8080/api" >> $GITHUB_ENV
 
       # BUILD
       - name: Build with Maven
