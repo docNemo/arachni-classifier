@@ -174,6 +174,7 @@ jobs:
           -p HOST_PORT=${{ env.HOST_PORT }} \
           -p IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WIHT_VERSION }} \
           -p IMAGE_SHA=${{ env.IMAGE_SHA }} \
+          -p OBJECT_STORAGE_HOST=${{ env.OBJECT_STORAGE_HOST }} \
           -p OS_ROUTE=${{ env.OS_ROUTE }} | oc apply -f -
 
       - name: Deploy Route to OS
