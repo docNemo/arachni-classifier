@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/test")
+@RequestMapping("/classifier")
 public class ClassifierController {
 
-    @PostMapping
+    @PostMapping("/category")
     public String test() {
-        return "ok";
+        return "Это просто нечто";
     }
 }
