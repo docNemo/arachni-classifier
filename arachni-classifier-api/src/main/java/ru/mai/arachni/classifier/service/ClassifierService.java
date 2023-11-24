@@ -31,6 +31,19 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ClassifierService {
     private final ModelProvider modelProvider;
+    private final Filter filter;
+
+    private Classifier classifier;
+    private Instances dataset;
+
+    @PostConstruct
+    void initClassifier() {
+        classifier = getClassifier();
+        dataset = getDataset();
+
+        dataset.setClassIndex(0);
+    }
+
     private final String[] categories = new String[]{
             "EliteDangerous",
             "HarryPotter",
@@ -39,12 +52,7 @@ public class ClassifierService {
             "TheElderScrolls"
     };
 
-
-    @SneakyThrows
-    public CategoryClassifierResponse getCategory(
-            CategoryClassifierRequest categoryClassifierRequest
-    ) {
-
+    Instances buildInstances(CategoryClassifierRequest categoryClassifierRequest) {
         Attribute attribute = new Attribute("text", (ArrayList<String>) null);
 
         Instances instances = new Instances(
@@ -63,38 +71,38 @@ public class ClassifierService {
 
         instances.add(new DenseInstance(1.0, instanceValue1));
 
-        StringToWordVector filter = new StringToWordVector();
-        filter.setInputFormat(instances);
-        NGramTokenizer tokenizer = new NGramTokenizer();
-        filter.setTokenizer(tokenizer);
-        tokenizer.setNGramMaxSize(3);
-        tokenizer.setNGramMinSize(1);
-        tokenizer.setDelimiters(" \r\n\t.,;:'\"()?!");
+        return instances;
+    }
 
+    @SneakyThrows
+    Classifier getClassifier() {
+        InputStream modelInputStream = modelProvider.getModel();
+        return (Classifier) weka.core.SerializationHelper.read(modelInputStream);
+    }
+
+    @SneakyThrows
+    Instances getDataset() {
         InputStream datasetStream = modelProvider.getDataSetType();
-        Instances dataset = new Instances(new InputStreamReader(datasetStream));
+        return new Instances(new InputStreamReader(datasetStream));
+    }
 
-        Instances cook = Filter.useFilter(
+    @SneakyThrows
+    public CategoryClassifierResponse getCategory(
+            CategoryClassifierRequest categoryClassifierRequest
+    ) {
+        Instances instances = buildInstances(categoryClassifierRequest);
+        filter.setInputFormat(instances);
+
+        Instances vectorizedText = Filter.useFilter(
                 instances,
                 filter
         );
 
-        LOGGER.info("cook: {}", cook);
+        vectorizedText.get(0).setDataset(dataset);
 
-        InputStream modelInputStream = modelProvider.getModel();
-        PART classifier = (PART) weka.core.SerializationHelper.read(modelInputStream);
-
-        LOGGER.info("cap: {}", classifier.getCapabilities().capabilities());
-//        dataset.add(cook.get(0));
-        LOGGER.info("num attr cook: {}, dataset: {}", cook.numAttributes(), dataset.numAttributes());
-        dataset.setClassIndex(0);
-        LOGGER.info("new ds {}", dataset);
-        LOGGER.info("dataset class ind: {}", dataset.classAttribute());
-//        cook.setClassIndex(cook.numAttributes() - 1);
-        cook.get(0).setDataset(dataset);
-        LOGGER.info("new cook {}", cook);
-        int instanceClass = (int) classifier.classifyInstance(cook.get(0));
-        LOGGER.info("res: {} - {}", instanceClass, categories[instanceClass]);
-        return new CategoryClassifierResponse("Это нечто: " + instanceClass);
+        LOGGER.info("new vectorizedText {}", vectorizedText);
+        int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
+        LOGGER.info("result class ind {}, название {}", instanceClass, categories[instanceClass]);
+        return new CategoryClassifierResponse(categories[instanceClass]);
     }
 }
