@@ -20,4 +20,12 @@ public class ModelProvider {
                 )
         );
     }
+
+    public InputStream getDataSetType() {
+        return new ByteArrayInputStream(
+                Base64.getDecoder().decode(
+                        restTemplate.getForObject(getModelUrl + "datasettype", String.class)
+                )
+        );
+    }
 }
