@@ -14,6 +14,7 @@ springdoc:
     disable-swagger-default-url: 'true'
     path: '/swagger-ui'
 
-object-storage:
+model-storage:
   host: http://arachni-storage-controller-develop:8080/api
-  objectsUrl: ${object-storage.host}/objects
+  getModelUrl: ${model-storage.host}/models/
+  modelName: model
