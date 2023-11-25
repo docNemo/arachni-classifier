@@ -4,23 +4,14 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import ru.mai.arachni.classifier.TextClassifier;
 import ru.mai.arachni.classifier.dto.request.CategoryClassifierRequest;
 import ru.mai.arachni.classifier.dto.response.CategoryClassifierResponse;
 import ru.mai.arachni.classifier.provider.ModelProvider;
 import weka.classifiers.Classifier;
-import weka.classifiers.meta.FilteredClassifier;
-import weka.classifiers.rules.PART;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
-import weka.core.Instance;
 import weka.core.Instances;
-import weka.core.stemmers.NullStemmer;
-import weka.core.stemmers.Stemmer;
-import weka.core.tokenizers.NGramTokenizer;
-import weka.core.tokenizers.Tokenizer;
 import weka.filters.Filter;
-import weka.filters.unsupervised.attribute.StringToWordVector;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -30,6 +21,15 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class ClassifierService {
+    private static final String[] categories = new String[]{
+            "Elite Dangerous",
+            "Гарри Поттер",
+            "Метро",
+            "Звёздные войны",
+            "The Elder Scrolls",
+            "Другое"
+    };
+
     private final ModelProvider modelProvider;
     private final Filter filter;
 
@@ -44,15 +44,29 @@ public class ClassifierService {
         dataset.setClassIndex(0);
     }
 
-    private final String[] categories = new String[]{
-            "EliteDangerous",
-            "HarryPotter",
-            "Metro",
-            "StarWars",
-            "TheElderScrolls"
-    };
+    @SneakyThrows
+    public CategoryClassifierResponse getCategory(
+            CategoryClassifierRequest categoryClassifierRequest
+    ) {
+        Instances instances = buildInstances(categoryClassifierRequest);
+        filter.setInputFormat(instances);
 
-    Instances buildInstances(CategoryClassifierRequest categoryClassifierRequest) {
+        Instances vectorizedText = Filter.useFilter(
+                instances,
+                filter
+        );
+
+        vectorizedText.get(0).setDataset(dataset);
+        LOGGER.info("new vectorizedText {}", vectorizedText);
+
+        int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
+        LOGGER.info("result class ind {}, название {}", instanceClass, categories[instanceClass]);
+        return new CategoryClassifierResponse(categories[instanceClass]);
+    }
+
+    Instances buildInstances(
+            CategoryClassifierRequest categoryClassifierRequest
+    ) {
         Attribute attribute = new Attribute("text", (ArrayList<String>) null);
 
         Instances instances = new Instances(
@@ -62,7 +76,6 @@ public class ClassifierService {
                 )),
                 0
         );
-
         double[] instanceValue1 = new double[instances.numAttributes()];
 
         instanceValue1[0] = instances
@@ -84,25 +97,5 @@ public class ClassifierService {
     Instances getDataset() {
         InputStream datasetStream = modelProvider.getDataSetType();
         return new Instances(new InputStreamReader(datasetStream));
-    }
-
-    @SneakyThrows
-    public CategoryClassifierResponse getCategory(
-            CategoryClassifierRequest categoryClassifierRequest
-    ) {
-        Instances instances = buildInstances(categoryClassifierRequest);
-        filter.setInputFormat(instances);
-
-        Instances vectorizedText = Filter.useFilter(
-                instances,
-                filter
-        );
-
-        vectorizedText.get(0).setDataset(dataset);
-
-        LOGGER.info("new vectorizedText {}", vectorizedText);
-        int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
-        LOGGER.info("result class ind {}, название {}", instanceClass, categories[instanceClass]);
-        return new CategoryClassifierResponse(categories[instanceClass]);
     }
 }
