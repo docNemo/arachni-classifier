@@ -21,7 +21,7 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class ClassifierService {
-    private static final String[] categories = new String[]{
+    private static final String[] CATEGORIES = new String[]{
             "Elite Dangerous",
             "Гарри Поттер",
             "Метро",
@@ -60,8 +60,8 @@ public class ClassifierService {
         LOGGER.info("new vectorizedText {}", vectorizedText);
 
         int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
-        LOGGER.info("result class ind {}, название {}", instanceClass, categories[instanceClass]);
-        return new CategoryClassifierResponse(categories[instanceClass]);
+        LOGGER.info("result class ind {}, название {}", instanceClass, CATEGORIES[instanceClass]);
+        return new CategoryClassifierResponse(CATEGORIES[instanceClass]);
     }
 
     Instances buildInstances(

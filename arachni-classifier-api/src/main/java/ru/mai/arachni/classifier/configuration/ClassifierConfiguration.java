@@ -1,20 +1,14 @@
 package ru.mai.arachni.classifier.configuration;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 import ru.mai.arachni.classifier.provider.ModelProvider;
 import ru.mai.arachni.classifier.service.ClassifierService;
-import weka.core.Attribute;
-import weka.core.Instances;
 import weka.core.tokenizers.NGramTokenizer;
 import weka.filters.Filter;
 import weka.filters.unsupervised.attribute.StringToWordVector;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Configuration
 public class ClassifierConfiguration {
