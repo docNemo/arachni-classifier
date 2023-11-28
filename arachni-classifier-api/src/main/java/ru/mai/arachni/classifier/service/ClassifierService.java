@@ -49,17 +49,18 @@ public class ClassifierService {
             CategoryClassifierRequest categoryClassifierRequest
     ) {
         Instances instances = buildInstances(categoryClassifierRequest);
-        filter.setInputFormat(instances);
+//        filter.setInputFormat(instances);
+//
+//        Instances vectorizedText = Filter.useFilter(
+//                instances,
+//                filter
+//        );
+//
+//        vectorizedText.get(0).setDataset(dataset);
+//        LOGGER.info("new vectorizedText {}", vectorizedText);
 
-        Instances vectorizedText = Filter.useFilter(
-                instances,
-                filter
-        );
-
-        vectorizedText.get(0).setDataset(dataset);
-        LOGGER.info("new vectorizedText {}", vectorizedText);
-
-        int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
+        int instanceClass = (int) classifier.classifyInstance(instances.get(0));
+//        int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
         LOGGER.info("result class ind {}, название {}", instanceClass, CATEGORIES[instanceClass]);
         return new CategoryClassifierResponse(CATEGORIES[instanceClass]);
     }
@@ -68,11 +69,13 @@ public class ClassifierService {
             CategoryClassifierRequest categoryClassifierRequest
     ) {
         Attribute attribute = new Attribute("text", (ArrayList<String>) null);
+//        Attribute clazz = new Attribute("universe", (ArrayList<String>) null);
 
         Instances instances = new Instances(
                 "article",
                 new ArrayList<>(List.of(
                         attribute
+//                        clazz
                 )),
                 0
         );
