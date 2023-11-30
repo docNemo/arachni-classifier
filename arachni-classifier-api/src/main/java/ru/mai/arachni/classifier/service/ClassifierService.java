@@ -18,6 +18,8 @@ import java.io.InputStreamReader;
 @Slf4j
 @RequiredArgsConstructor
 public class ClassifierService {
+    private final int CATEGORY_ATTRIBUTE_INDEX = 0;
+    private final int TEXT_ATTRIBUTE_INDEX = 1;
 
     private final ModelProvider modelProvider;
 
@@ -35,19 +37,18 @@ public class ClassifierService {
         Instances instances = buildInstances(categoryClassifierRequest);
 
         int instanceClass = (int) classifier.classifyInstance(instances.firstInstance());
+        String category = instances
+                .attribute(CATEGORY_ATTRIBUTE_INDEX)
+                .value(instanceClass);
 
         LOGGER.info(
                 "result class ind {}, category {}",
                 instanceClass,
-                instances
-                        .attribute(0)
-                        .value(instanceClass)
+                category
         );
 
         return new CategoryClassifierResponse(
-                instances
-                        .attribute(0)
-                        .value(instanceClass)
+                category
         );
     }
 
@@ -60,15 +61,15 @@ public class ClassifierService {
         LOGGER.info("dataset: {}", dataset);
         double[] instanceValue = new double[dataset.numAttributes()];
 
-        instanceValue[1] = dataset
-                .attribute(1)
+        instanceValue[TEXT_ATTRIBUTE_INDEX] = dataset
+                .attribute(TEXT_ATTRIBUTE_INDEX)
                 .addStringValue(categoryClassifierRequest.getText());
 
         LOGGER.info("value: {}", instanceValue);
 
         dataset.add(new DenseInstance(1, instanceValue));
         LOGGER.info("instances: {}", dataset);
-        dataset.setClassIndex(0);
+        dataset.setClassIndex(CATEGORY_ATTRIBUTE_INDEX);
         dataset.firstInstance().setClassMissing();
 
         return dataset;
