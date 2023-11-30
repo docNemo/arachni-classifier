@@ -8,51 +8,24 @@ import ru.mai.arachni.classifier.dto.request.CategoryClassifierRequest;
 import ru.mai.arachni.classifier.dto.response.CategoryClassifierResponse;
 import ru.mai.arachni.classifier.provider.ModelProvider;
 import weka.classifiers.Classifier;
-import weka.core.Attribute;
 import weka.core.DenseInstance;
-import weka.core.FastVector;
 import weka.core.Instances;
-import weka.filters.Filter;
+import weka.core.SerializationHelper;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
 public class ClassifierService {
-    private static final String[] CATEGORIES = new String[]{
-            "Elite Dangerous",
-            "Гарри Поттер",
-            "Метро",
-            "Звёздные войны",
-            "The Elder Scrolls",
-            "Другое"
-    };
-
-    private static final ArrayList<String> UNIVERSES = new ArrayList<>(
-            List.of(
-                    "EliteDangerous",
-                    "HarryPotter",
-                    "Metro",
-                    "StarWars",
-                    "TheElderScrolls"
-            )
-    );
 
     private final ModelProvider modelProvider;
-    private final Filter filter;
 
     private Classifier classifier;
-    private Instances dataset;
 
     @PostConstruct
     void initClassifier() {
         classifier = getClassifier();
-        dataset = getDataset();
-
-        dataset.setClassIndex(0);
     }
 
     @SneakyThrows
@@ -60,58 +33,53 @@ public class ClassifierService {
             CategoryClassifierRequest categoryClassifierRequest
     ) {
         Instances instances = buildInstances(categoryClassifierRequest);
-//        filter.setInputFormat(instances);
-//
-//        Instances vectorizedText = Filter.useFilter(
-//                instances,
-//                filter
-//        );
-//
-//        vectorizedText.get(0).setDataset(dataset);
-//        LOGGER.info("new vectorizedText {}", vectorizedText);
 
-//        LOGGER.info("inst: {}", instances);
-        instances.instance(0).setClassMissing();
-        int instanceClass = (int) classifier.classifyInstance(instances.instance(0));
-//        int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
-        LOGGER.info("result class ind {}, название {}", instanceClass, CATEGORIES[instanceClass]);
-        return new CategoryClassifierResponse(CATEGORIES[instanceClass]);
+        int instanceClass = (int) classifier.classifyInstance(instances.firstInstance());
+
+        LOGGER.info(
+                "result class ind {}, category {}",
+                instanceClass,
+                instances
+                        .firstInstance()
+                        .attribute(instances.classIndex())
+                        .value(0)
+        );
+
+        return new CategoryClassifierResponse(
+                instances
+                        .firstInstance()
+                        .attribute(instances.classIndex())
+                        .value(0)
+        );
     }
 
     Instances buildInstances(
             CategoryClassifierRequest categoryClassifierRequest
     ) {
-        Attribute attribute = new Attribute("text", (FastVector) null);
-        Attribute universe = new Attribute("universe", UNIVERSES);
 
-        Instances instances = new Instances(
-                "article",
-                new ArrayList<>(List.of(
-                        attribute,
-                        universe
-                )),
-                0
-        );
-        LOGGER.info("i: {}", instances);
-        double[] instanceValue1 = new double[instances.numAttributes()];
+        Instances dataset = getDataset();
 
-        instanceValue1[0] = instances
-                .attribute(attribute.name())
+        LOGGER.info("dataset: {}", dataset);
+        double[] instanceValue = new double[dataset.numAttributes()];
+
+        instanceValue[1] = dataset
+                .attribute(1)
                 .addStringValue(categoryClassifierRequest.getText());
 
-        LOGGER.info("val: {}", instanceValue1);
+        LOGGER.info("value: {}", instanceValue);
 
-        instances.add(new DenseInstance(1, instanceValue1));
-        LOGGER.info("in: {}", instances);
-        instances.setClass(universe);
+        dataset.add(new DenseInstance(1, instanceValue));
+        LOGGER.info("instances: {}", dataset);
+        dataset.setClassIndex(0);
+        dataset.firstInstance().setClassMissing();
 
-        return instances;
+        return dataset;
     }
 
     @SneakyThrows
     Classifier getClassifier() {
         InputStream modelInputStream = modelProvider.getModel();
-        return (Classifier) weka.core.SerializationHelper.read(modelInputStream);
+        return (Classifier) SerializationHelper.read(modelInputStream);
     }
 
     @SneakyThrows
