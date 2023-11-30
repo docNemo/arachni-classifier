@@ -10,6 +10,7 @@ import ru.mai.arachni.classifier.provider.ModelProvider;
 import weka.classifiers.Classifier;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
+import weka.core.FastVector;
 import weka.core.Instances;
 import weka.filters.Filter;
 
@@ -59,7 +60,9 @@ public class ClassifierService {
 //        vectorizedText.get(0).setDataset(dataset);
 //        LOGGER.info("new vectorizedText {}", vectorizedText);
 
-        int instanceClass = (int) classifier.classifyInstance(instances.get(0));
+//        LOGGER.info("inst: {}", instances);
+        instances.instance(0).setClassMissing();
+        int instanceClass = (int) classifier.classifyInstance(instances.instance(0));
 //        int instanceClass = (int) classifier.classifyInstance(vectorizedText.get(0));
         LOGGER.info("result class ind {}, название {}", instanceClass, CATEGORIES[instanceClass]);
         return new CategoryClassifierResponse(CATEGORIES[instanceClass]);
@@ -68,24 +71,29 @@ public class ClassifierService {
     Instances buildInstances(
             CategoryClassifierRequest categoryClassifierRequest
     ) {
-        Attribute attribute = new Attribute("text", (ArrayList<String>) null);
-//        Attribute clazz = new Attribute("universe", (ArrayList<String>) null);
+        Attribute attribute = new Attribute("text", (FastVector) null);
+        Attribute universe = new Attribute("universe");
 
         Instances instances = new Instances(
                 "article",
                 new ArrayList<>(List.of(
-                        attribute
-//                        clazz
+                        attribute,
+                        universe
                 )),
                 0
         );
+        LOGGER.info("i: {}", instances);
         double[] instanceValue1 = new double[instances.numAttributes()];
 
         instanceValue1[0] = instances
-                .attribute(0)
+                .attribute(attribute.name())
                 .addStringValue(categoryClassifierRequest.getText());
 
-        instances.add(new DenseInstance(1.0, instanceValue1));
+        LOGGER.info("val: {}", instanceValue1);
+
+        instances.add(new DenseInstance(1, instanceValue1));
+        LOGGER.info("in: {}", instances);
+        instances.setClass(universe);
 
         return instances;
     }
