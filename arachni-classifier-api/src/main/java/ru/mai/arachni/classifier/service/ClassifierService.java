@@ -41,15 +41,13 @@ public class ClassifierService {
                 instanceClass,
                 instances
                         .firstInstance()
-                        .attribute(instances.classIndex())
                         .value(0)
         );
 
         return new CategoryClassifierResponse(
                 instances
                         .firstInstance()
-                        .attribute(instances.classIndex())
-                        .value(0)
+                        .stringValue(0)
         );
     }
 
