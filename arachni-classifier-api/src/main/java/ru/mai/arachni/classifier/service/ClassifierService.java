@@ -18,8 +18,8 @@ import java.io.InputStreamReader;
 @Slf4j
 @RequiredArgsConstructor
 public class ClassifierService {
-    private final int CATEGORY_ATTRIBUTE_INDEX = 0;
-    private final int TEXT_ATTRIBUTE_INDEX = 1;
+    private static final int CATEGORY_ATTRIBUTE_INDEX = 0;
+    private static final int TEXT_ATTRIBUTE_INDEX = 1;
 
     private final ModelProvider modelProvider;
 
