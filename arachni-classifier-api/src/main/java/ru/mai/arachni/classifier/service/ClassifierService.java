@@ -31,6 +31,16 @@ public class ClassifierService {
             "Другое"
     };
 
+    private static final ArrayList<String> UNIVERSES = new ArrayList<>(
+            List.of(
+                    "EliteDangerous",
+                    "HarryPotter",
+                    "Metro",
+                    "StarWars",
+                    "TheElderScrolls"
+            )
+    );
+
     private final ModelProvider modelProvider;
     private final Filter filter;
 
@@ -72,7 +82,7 @@ public class ClassifierService {
             CategoryClassifierRequest categoryClassifierRequest
     ) {
         Attribute attribute = new Attribute("text", (FastVector) null);
-        Attribute universe = new Attribute("universe");
+        Attribute universe = new Attribute("universe", UNIVERSES);
 
         Instances instances = new Instances(
                 "article",
