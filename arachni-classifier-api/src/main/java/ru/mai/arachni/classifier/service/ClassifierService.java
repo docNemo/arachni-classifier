@@ -40,14 +40,14 @@ public class ClassifierService {
                 "result class ind {}, category {}",
                 instanceClass,
                 instances
-                        .firstInstance()
-                        .value(0)
+                        .attribute(0)
+                        .value(instanceClass)
         );
 
         return new CategoryClassifierResponse(
                 instances
-                        .firstInstance()
-                        .stringValue(0)
+                        .attribute(0)
+                        .value(instanceClass)
         );
     }
 
