@@ -6,9 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 import ru.mai.arachni.classifier.provider.ModelProvider;
 import ru.mai.arachni.classifier.service.ClassifierService;
-import weka.core.tokenizers.NGramTokenizer;
-import weka.filters.Filter;
-import weka.filters.unsupervised.attribute.StringToWordVector;
 
 @Configuration
 public class ClassifierConfiguration {
@@ -27,24 +24,10 @@ public class ClassifierConfiguration {
 
     @Bean
     public ClassifierService classifierService(
-            ModelProvider modelProvider,
-            Filter filter
+            ModelProvider modelProvider
     ) {
         return new ClassifierService(
-                modelProvider,
-                filter
+                modelProvider
         );
-    }
-
-    @Bean
-    public Filter filterStringToWordVec() throws Exception {
-        NGramTokenizer tokenizer = new NGramTokenizer();
-        tokenizer.setNGramMaxSize(3);
-        tokenizer.setNGramMinSize(1);
-        tokenizer.setDelimiters(" \r\n\t.,;:'\"()?!");
-
-        StringToWordVector filter = new StringToWordVector();
-        filter.setTokenizer(tokenizer);
-        return filter;
     }
 }

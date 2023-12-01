@@ -16,6 +16,5 @@ springdoc:
 
 model-storage:
   host: http://arachni-storage-controller-develop.apps.os-lab-3.neo/api
-#  host: http://arachni-storage-controller-develop:8080/api
   getModelUrl: ${model-storage.host}/models/
   modelName: model

@@ -64,7 +64,7 @@ objects:
                   value: ${APPLICATION_NAME}
                 - name: JAVA_OPTS
                   value: |
-                    -Dobject-storage.host=${OBJECT_STORAGE_HOST}
+                    -Dmodel-storage.host=${OBJECT_STORAGE_HOST}
                 - name: ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
