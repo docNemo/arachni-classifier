@@ -18,3 +18,7 @@ model-storage:
   host: http://arachni-storage-controller-develop.apps.os-lab-3.neo/api
   getModelUrl: ${model-storage.host}/models/
   modelName: model
+
+morphy:
+  lang: ru
+  path: /company/evo/jmorphy2/${morphy.lang}/pymorphy2_dicts

@@ -6,6 +6,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import ru.mai.arachni.classifier.dto.request.CategoryClassifierRequest;
 import ru.mai.arachni.classifier.dto.response.CategoryClassifierResponse;
+import ru.mai.arachni.classifier.normalizer.TextNormalizer;
 import ru.mai.arachni.classifier.provider.ModelProvider;
 import weka.classifiers.Classifier;
 import weka.core.DenseInstance;
@@ -22,7 +23,7 @@ public class ClassifierService {
     private static final int TEXT_ATTRIBUTE_INDEX = 1;
 
     private final ModelProvider modelProvider;
-
+    private final TextNormalizer textNormalizer;
     private Classifier classifier;
 
     @PostConstruct
@@ -34,7 +35,12 @@ public class ClassifierService {
     public CategoryClassifierResponse getCategory(
             CategoryClassifierRequest categoryClassifierRequest
     ) {
-        Instances instances = buildInstances(categoryClassifierRequest);
+        String normalizedText = textNormalizer.normalizeText(
+                categoryClassifierRequest.getText()
+        );
+        Instances instances = buildInstances(
+                normalizedText
+        );
 
         int instanceClass = (int) classifier.classifyInstance(instances.firstInstance());
         String category = instances
@@ -53,7 +59,7 @@ public class ClassifierService {
     }
 
     Instances buildInstances(
-            CategoryClassifierRequest categoryClassifierRequest
+            String text
     ) {
 
         Instances dataset = getDataset();
@@ -63,7 +69,7 @@ public class ClassifierService {
 
         instanceValue[TEXT_ATTRIBUTE_INDEX] = dataset
                 .attribute(TEXT_ATTRIBUTE_INDEX)
-                .addStringValue(categoryClassifierRequest.getText());
+                .addStringValue(text);
 
         LOGGER.info("value: {}", instanceValue);
 
