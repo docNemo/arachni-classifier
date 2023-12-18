@@ -1,0 +1,211 @@
+name: Build and Deploy
+
+on:
+  pull_request:
+    branches: [ "master", "develop", "release/**", "feature/**" ]
+    types: [ opened, reopened, synchronize, closed ]
+
+env:
+  REGISTRY: ghcr.io
+
+  DOCKERFILE: "Dockerfile"
+  IMAGE_NAME: ${{ github.repository }}
+
+  BASE_APPLICATION_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  build-and-deploy:
+
+    if: github.event.pull_request.state != 'closed' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Print env
+        run: |
+          echo "$GITHUB_CONTEXT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # BUILD JAR
+      - name: Set up JDK 20
+        uses: actions/setup-java@v3
+        with:
+          java-version: '20'
+          distribution: 'oracle'
+
+      # DEFINE ENV
+      - name: Choose source branch
+        if: github.event.pull_request.state == 'open'
+        run: echo "BRANCH=${{ github.head_ref }}" >> $GITHUB_ENV
+
+      - name: Choose target branch
+        if: github.event.pull_request.state == 'closed'
+        run: echo "BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+
+      - name: Prepare branch name if open PR
+        uses: jungwinter/split@master
+        id: branch
+        with:
+          msg: ${{ env.BRANCH }}
+          separator: "/"
+          maxsplit: -1
+
+      - name: Prepare version
+        run: |
+          echo "VERSION=${{ steps.branch.outputs._1 || steps.branch.outputs._0 }}" >> $GITHUB_ENV
+
+      - name: Prepare IMAGE_NAME_WIHT_VERSION
+        run: |
+          echo "IMAGE_NAME_WIHT_VERSION=${{ env.IMAGE_NAME }}:${{ env.VERSION }}" >> $GITHUB_ENV
+
+      - name: Set Dev env
+        if: env.BRANCH == 'develop' || startsWith(env.BRANCH, 'feature')
+        run: |
+          echo "CD_MODE=dev" >> $GITHUB_ENV
+          echo "APPLICATION_NAME=${{ env.BASE_APPLICATION_NAME }}-${{ env.VERSION }}" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back-dev" >> $GITHUB_ENV
+          echo "APP_TEMPLATE=DeploymentConfig.yml" >> $GITHUB_ENV
+          echo "ROUTE_TEMPLATE=Route.yml" >> $GITHUB_ENV
+          echo "HOST_PORT=8080" >> $GITHUB_ENV
+          echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back-dev" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "OBJECT_STORAGE_HOST=http://arachni-storage-controller-develop:8080/api" >> $GITHUB_ENV
+
+      - name: Set UAT env
+        if: startsWith(env.BRANCH, 'release')
+        run: |
+          echo "CD_MODE=uat" >> $GITHUB_ENV
+          echo "APPLICATION_NAME=${{ env.BASE_APPLICATION_NAME }}-uat" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back-uat" >> $GITHUB_ENV
+          echo "APP_TEMPLATE=DeploymentConfig.yml" >> $GITHUB_ENV
+          echo "HOST_PORT=8080" >> $GITHUB_ENV
+          echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back-uat" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "OBJECT_STORAGE_HOST=http://arachni-storage-controller-uat:8080/api" >> $GITHUB_ENV
+
+      - name: Set Prod env
+        if: env.BRANCH == 'master'
+        run: |
+          echo "CD_MODE=prod" >> $GITHUB_ENV
+          echo "APPLICATION_NAME=${{ env.BASE_APPLICATION_NAME }}-prod" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back" >> $GITHUB_ENV
+          echo "APP_TEMPLATE=DeploymentConfig.yml" >> $GITHUB_ENV
+          echo "ROUTE_TEMPLATE=Route.yml" >> $GITHUB_ENV
+          echo "HOST_PORT=8080" >> $GITHUB_ENV
+          echo "INGRESS_APP=ingress-arachni" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "OBJECT_STORAGE_HOST=http://arachni-storage-controller-prod:8080/api" >> $GITHUB_ENV
+
+      # BUILD
+      - name: Build with Maven
+        run: mvn --batch-mode --update-snapshots clean package
+
+      - name: Image name to lowercase
+        id: prepare-image-name
+        uses: ASzc/change-string-case-action@v5
+        with:
+          string: ${{ env.IMAGE_NAME_WIHT_VERSION }}
+
+      - name: Prepare image name
+        run: echo "IMAGE_NAME_WIHT_VERSION=${{ steps.prepare-image-name.outputs.lowercase }}" >> $GITHUB_ENV
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        run: docker login ${{ env.REGISTRY }} --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        run: |
+          docker build --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WIHT_VERSION }} . -f ${{ env.DOCKERFILE }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WIHT_VERSION }}
+          clear_sha=$(docker images --digests | grep ${{ env.VERSION }} | awk '{print $3}')
+          echo "IMAGE_SHA=$clear_sha" >> $GITHUB_ENV
+
+      # DEPLOY
+      - name: ZeroTier
+        uses: zerotier/github-action@v1.0.1
+        with:
+          network_id: ${{ secrets.ZEROTIER_NETWORK_ID }}
+
+      - name: Get DNS server from zerotier
+        id: dns
+        run: |
+          echo "dns=$(sudo zerotier-cli -j listnetworks | jq '.[].dns.servers[0]')" >> $GITHUB_ENV
+
+      - name: Add DNS to resolv.conf
+        run: |
+          sudo mv /etc/resolv.conf /etc/resolv1.conf
+          cat /etc/resolv1.conf | sudo tee -a /etc/resolv.conf
+          echo "nameserver ${{ env.dns }}" | sudo tee -a /etc/resolv.conf
+
+      - name: Install oc
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: 4
+
+      - name: Log in to OpenShift
+        run: |
+          max_iteration=3
+          iteration=1
+          until oc login -u ${{ secrets.LOGIN_OS }} -p ${{ secrets.PASSWORD_OS }} --server=https://${{ secrets.OPENSHIFT_SERVER }}:6443 --insecure-skip-tls-verify
+          do
+              echo "Unsuccessful login to OS $iteration"
+              if [[ $iteration -eq $max_iteration ]]
+              then
+                break
+              fi
+              sleep 15
+              ((iteration++)) 
+          done          
+          oc project ${{ env.OS_PROJECT }}
+          oc whoami
+
+      - name: Deploy App to OS
+        run: |
+          oc process -f config/openshift/${{ env.APP_TEMPLATE }} \
+          -p APPLICATION_NAME=${{ env.APPLICATION_NAME }} \
+          -p HOST_PORT=${{ env.HOST_PORT }} \
+          -p IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_WIHT_VERSION }} \
+          -p IMAGE_SHA=${{ env.IMAGE_SHA }} \
+          -p OBJECT_STORAGE_HOST=${{ env.OBJECT_STORAGE_HOST }} \
+          -p OS_ROUTE=${{ env.OS_ROUTE }} | oc apply -f -
+
+      - name: Deploy Route to OS
+        if: env.CD_MODE == 'dev'
+        run: |
+          oc process -f config/openshift/${{ env.ROUTE_TEMPLATE }} \
+          -p APPLICATION_NAME=${{ env.APPLICATION_NAME }} \
+          -p HOST_PORT=${{ env.HOST_PORT }} \
+          -p INGRESS_APP=${{ env.INGRESS_APP }} \
+          -p INGRESS_HOST=${{ env.INGRESS_HOST }} \
+          -p OS_ROUTE=${{ env.OS_ROUTE }} | oc apply -f -
+
+      - name: Delete completed deploy pods
+        run: |
+          oc delete pod --field-selector=status.phase==Succeeded
+          oc delete pod --field-selector=status.phase==Failed
+
+      - name: Logout from OpenShift
+        run: oc logout
+
+      - name: Get Zerotier ip
+        run: |
+          echo "ip=$(sudo zerotier-cli -j listnetworks | jq '.[].assignedAddresses[0]' | sed 's/\/24//g' | tr -d \\\")" >> $GITHUB_ENV
+
+      - name: Leave from Zerotier network
+        run: sudo zerotier-cli leave ${{ secrets.ZEROTIER_NETWORK_ID }}
+
+      - name: Get Zerotier member by ip
+        run: |
+          echo "member_id=$( curl -X GET -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member | jq '.[] | select(.config.ipAssignments[0]=="${{ env.ip }}") | .nodeId' | tr -d \\\")" >> $GITHUB_ENV
+
+      - name: Delete Zerotier member
+        run: |
+          curl -X DELETE -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member/${{ env.member_id }}
